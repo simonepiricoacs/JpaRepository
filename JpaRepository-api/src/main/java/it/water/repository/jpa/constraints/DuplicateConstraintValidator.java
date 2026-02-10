@@ -20,6 +20,7 @@ package it.water.repository.jpa.constraints;
 import it.water.core.api.model.BaseEntity;
 import it.water.core.api.repository.BaseRepository;
 import it.water.core.api.repository.RepositoryConstraintValidator;
+import it.water.core.api.repository.query.Query;
 import it.water.repository.entity.model.exceptions.DuplicateEntityException;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.Table;
@@ -64,8 +65,12 @@ public class DuplicateConstraintValidator implements RepositoryConstraintValidat
         if (uniqueConstraints != null && uniqueConstraints.length > 0) {
             for (int i = 0; i < uniqueConstraints.length; i++) {
                 String[] columnNames = uniqueConstraints[i].columnNames();
-                String filter = createQueryFilter(entity, columnNames, type);
-                log.debug("Executing the query with parameters: {}", filter);
+                Query filter = createQueryFilter(entity, columnNames, type, entityRepository);
+                if (filter == null) {
+                    log.debug("Could not build query filter for unique constraint, skipping duplicate check");
+                    continue;
+                }
+                log.debug("Executing duplicate check query with filter: {}", filter);
                 try {
                     T result = entityRepository.find(filter);
                     // if the entity has not the same id than it's duplicated
@@ -78,16 +83,18 @@ public class DuplicateConstraintValidator implements RepositoryConstraintValidat
         }
     }
 
+
     /**
      * @param entity      Current entity
      * @param columnNames list of unique column names
      * @param type        entity type
      * @param <T>         Entity which is an WaterBaseEntity
+     * @param entityRepository
      * @return Query to check wheter duplicate entity exists or not
      */
-    private <T extends BaseEntity> String createQueryFilter(T entity, String[] columnNames, Class<T> type) {
+    private <T extends BaseEntity> Query createQueryFilter(T entity, String[] columnNames, Class<T> type, BaseRepository<T> entityRepository) {
         log.debug("Creating query filter...");
-        StringBuilder filterQueryBuilder = new StringBuilder();
+        Query compositeQuery = null;
         for (int j = 0; j < columnNames.length; j++) {
             String fieldName = columnNames[j];
             String innerField = null;
@@ -100,23 +107,33 @@ public class DuplicateConstraintValidator implements RepositoryConstraintValidat
 
             String getterMethod = "get" + fieldName.substring(0, 1).toUpperCase()
                     + fieldName.substring(1);
-            boolean isFirstCondition = j == 0;
-            appendCondition(isFirstCondition, entity, type, fieldName, innerField, getterMethod, filterQueryBuilder);
+            Query condition = buildCondition(entity, type, fieldName, innerField, getterMethod, entityRepository);
+            if (condition == null) {
+                return null;
+            }
+            if (compositeQuery == null) {
+                compositeQuery = condition;
+            } else {
+                compositeQuery = compositeQuery.and(condition);
+            }
         }
-        return filterQueryBuilder.toString();
+        return compositeQuery;
     }
 
     /**
-     * @param isFirstCondition
+     * Supports null values for FK fields by leveraging equalTo(null) which translates to IS NULL in JPA.
+     *
      * @param entity
      * @param type
      * @param fieldName
      * @param innerField
      * @param getterMethodName
-     * @param filterQueryBuilder
+     * @param entityRepository
+     * @return Query object to check whether duplicate entity exists or not
      * @param <T>
      */
-    private <T extends BaseEntity> void appendCondition(boolean isFirstCondition, T entity, Class<T> type, String fieldName, String innerField, String getterMethodName, StringBuilder filterQueryBuilder) {
+
+    private <T extends BaseEntity> Query buildCondition(T entity, Class<T> type, String fieldName, String innerField, String getterMethodName, BaseRepository<T> entityRepository) {
         try {
             Method m = type.getMethod(getterMethodName);
             Object value = null;
@@ -140,21 +157,12 @@ public class DuplicateConstraintValidator implements RepositoryConstraintValidat
                     value = null;
                 }
             }
-            // append only if innerMethod succeed
-            if (!isFirstCondition)
-                filterQueryBuilder.append(" AND ");
-            if (innerField == null) {
-                filterQueryBuilder.append(fieldName).append("=").append(value);
-            } else {
-                if (value != null) {
-                    filterQueryBuilder.append(fieldName).append(".").append(innerField).append("=")
-                            .append(value);
-                } else {
-                    filterQueryBuilder.append(fieldName).append(".").append(innerField).append(" = null");
-                }
-            }
+            String queryFieldPath = (innerField == null) ? fieldName : fieldName + "." + innerField;
+            // equalTo(null) will be translated to IS NULL by the PredicateBuilder
+            return entityRepository.getQueryBuilderInstance().field(queryFieldPath).equalTo(value);
         } catch (Exception e) {
             log.error("Impossible to find getter method {} on {}", getterMethodName, type.getName());
+            return null;
         }
     }
 }
