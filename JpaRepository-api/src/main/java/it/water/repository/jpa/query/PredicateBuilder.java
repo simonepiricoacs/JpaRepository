@@ -52,9 +52,17 @@ public class PredicateBuilder<T> {
             Path p = getPathForFields((AbstractOperation) filter);
             FieldValueOperand fieldValue = (FieldValueOperand) binaryValueOperation.getOperand(1);
             if (filter instanceof EqualTo) {
-                return cb.equal(p, convertToEntityFieldType(p.getJavaType(), fieldValue.getValue()));
+                Object convertedValue = convertToEntityFieldType(p.getJavaType(), fieldValue.getValue());
+                if (convertedValue == null) {
+                    return cb.isNull(p);
+                }
+                return cb.equal(p, convertedValue);
             } else if (filter instanceof NotEqualTo) {
-                return cb.notEqual(p, fieldValue.getValue());
+                Object convertedValue = convertToEntityFieldType(p.getJavaType(), fieldValue.getValue());
+                if (convertedValue == null) {
+                    return cb.isNotNull(p);
+                }
+                return cb.notEqual(p, convertedValue);
             } else if (filter instanceof GreaterOrEqualThan) {
                 if (fieldValue.getValue() instanceof Date dateValue) {
                     return cb.greaterThanOrEqualTo(p, dateValue);
