@@ -18,6 +18,7 @@ package it.water.repository.jpa;
 import it.water.core.api.model.PaginableResult;
 import it.water.core.api.registry.ComponentRegistry;
 import it.water.core.api.repository.query.Query;
+import it.water.core.api.repository.query.operands.FieldValueListOperand;
 import it.water.core.api.repository.query.operands.FieldValueOperand;
 import it.water.core.api.repository.query.operations.*;
 import it.water.core.api.service.Service;
@@ -310,7 +311,7 @@ class JpaRepositoryTest implements Service {
         Assertions.assertNotNull(predicateBuilder.buildPredicate(likeOperation));
 
         In inOperation = new In();
-        inOperation.defineOperands(testEntityRepository.getQueryBuilderInstance().field("uniqueField"), new FieldValueOperand("a"), new FieldValueOperand("b"));
+        inOperation.defineOperands(testEntityRepository.getQueryBuilderInstance().field("uniqueField"), new FieldValueListOperand(List.of("a", "b")));
         Assertions.assertEquals("uniqueField IN (a,b)", inOperation.getDefinition());
         Assertions.assertNotNull(predicateBuilder.buildPredicate(inOperation));
 
