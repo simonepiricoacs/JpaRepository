@@ -3,6 +3,30 @@
 ## Module Goal
 The JpaRepository module provides a unified, cross-platform abstraction for JPA-based persistence in the Water Framework. It enables Water applications to use JPA repositories in a technology-agnostic way, supporting both OSGi and Spring environments, and offering advanced features such as transaction management, entity expansion, and dynamic repository instantiation.
 
+## Architecture Overview
+
+```mermaid
+graph TD
+    A[JpaRepository Module] --> B[JpaRepository-api]
+    A --> C[JpaRepository-osgi]
+    A --> D[JpaRepository-spring]
+    A --> E[JpaRepository-test-utils]
+
+    B -->|defines| F[JpaRepository / WaterJpaRepository / JpaRepositoryManager]
+    C -->|OSGi impl| G[OsgiJpaRepositoryManager / OsgiBaseJpaRepository]
+    D -->|Spring impl| H[SpringJpaRepositoryManager / RepositoryFactory]
+    E -->|testing| I[Test entities and utilities]
+```
+
+## Sub-modules
+
+| Sub-module | Description |
+|---|---|
+| **JpaRepository-api** | Core interfaces: `JpaRepository<T>`, `WaterJpaRepository<T>`, `JpaRepositoryManager`, `AbstractJpaEntity` |
+| **JpaRepository-osgi** | OSGi implementation: `OsgiJpaRepositoryManager`, `OsgiBaseJpaRepository` |
+| **JpaRepository-spring** | Spring implementation: `SpringJpaRepositoryManager`, `RepositoryFactory`, `JpaRepositoryImpl` |
+| **JpaRepository-test-utils** | Test utilities for repository and transaction testing |
+
 ## Module Technical Characteristics
 
 ### Core Technologies
