@@ -370,12 +370,62 @@ class JpaRepositoryTest implements Service {
     @Test
     @Order(13)
     void testPersistenceUnitInfo() {
-        WaterPersistenceUnitInfo waterPersistenceUnitInfo = new WaterPersistenceUnitInfo("water-default-persistence", TestEntity.class);
+        WaterPersistenceUnitInfo waterPersistenceUnitInfo = new WaterPersistenceUnitInfo("water-default-persistence",
+                TestEntity.class);
         Assertions.assertDoesNotThrow(() -> waterPersistenceUnitInfo.addManagedClass("classProva"));
         Assertions.assertNotNull(waterPersistenceUnitInfo.getPersistenceProviderClassName());
         Assertions.assertNotNull(waterPersistenceUnitInfo.getPersistenceXMLSchemaVersion());
     }
 
+    @Test
+    @Order(14)
+    void testWaterPersistenceUnitInfoCoverage() {
+        WaterPersistenceUnitInfo info = new WaterPersistenceUnitInfo("test-unit", TestEntity.class);
+        info.setSharedCacheMode(jakarta.persistence.SharedCacheMode.ENABLE_SELECTIVE);
+        Assertions.assertEquals(jakarta.persistence.SharedCacheMode.ENABLE_SELECTIVE, info.getSharedCacheMode());
+        info.setValidationMode(jakarta.persistence.ValidationMode.CALLBACK);
+        Assertions.assertEquals(jakarta.persistence.ValidationMode.CALLBACK, info.getValidationMode());
+        info.setClassLoader(Thread.currentThread().getContextClassLoader());
+        Assertions.assertEquals(Thread.currentThread().getContextClassLoader(), info.getClassLoader());
+        Assertions.assertNotNull(info.getPersistenceUnitRootUrl());
+        Assertions.assertEquals("test-unit", info.getPersistenceUnitName());
+        Assertions.assertTrue(info.getManagedClassNames().isEmpty());
+        info.addManagedClass("TestClass");
+        Assertions.assertEquals(1, info.getManagedClassNames().size());
+        Assertions.assertTrue(info.getMappingFileNames().isEmpty());
+        Assertions.assertTrue(info.getJarFileUrls().isEmpty());
+        Assertions.assertFalse(info.excludeUnlistedClasses());
+        Assertions.assertNotNull(info.getProperties());
+        Assertions.assertEquals("2.2", info.getPersistenceXMLSchemaVersion());
+        Assertions.assertDoesNotThrow(() -> info.addTransformer(null));
+        Assertions.assertNotNull(info.getNewTempClassLoader());
+    }
+
+    @Test
+    @Order(15)
+    void testCountAll() {
+        // Ensure clean state or known state
+        testEntityRepository.removeAll();
+        Assertions.assertEquals(0, testEntityRepository.countAll(null));
+
+        TestEntity e1 = new TestEntity();
+        e1.setUniqueField("u1");
+        e1.setCombinedUniqueField1("c1-1");
+        e1.setCombinedUniqueField2("c2-1");
+        testEntityRepository.persist(e1);
+        Assertions.assertEquals(1, testEntityRepository.countAll(null));
+
+        TestEntity e2 = new TestEntity();
+        e2.setUniqueField("u2");
+        e2.setCombinedUniqueField1("c1-2");
+        e2.setCombinedUniqueField2("c2-2");
+        testEntityRepository.persist(e2);
+        Assertions.assertEquals(2, testEntityRepository.countAll(null));
+
+        // Test count with filter
+        Query q = testEntityRepository.getQueryBuilderInstance().field("uniqueField").equalTo("u1");
+        Assertions.assertEquals(1, testEntityRepository.countAll(q));
+    }
 
     @SuppressWarnings("unused")
     private void createAndPersisteExampleEntity() {
