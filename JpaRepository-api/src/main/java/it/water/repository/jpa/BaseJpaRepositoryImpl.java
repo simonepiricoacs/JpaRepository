@@ -30,6 +30,7 @@ import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import it.water.core.api.bundle.ApplicationProperties;
 import it.water.core.api.entity.owned.OwnedResource;
 import it.water.core.api.model.BaseEntity;
 import it.water.core.api.model.EntityExtension;
@@ -80,10 +81,24 @@ import lombok.Setter;
 public abstract class BaseJpaRepositoryImpl<T extends BaseEntity> implements JpaRepository<T> {
     public static final String WATER_DEFAULT_PERSISTENCE_UNIT_NAME = "water-default-persistence-unit";
 
+    /**
+     * Property name to configure the maximum allowed page size (delta) for findAll queries.
+     */
+    public static final String MAX_PAGE_SIZE_PROPERTY = "water.rest.pagination.max.delta";
+
+    /**
+     * Default maximum page size applied when the property is absent or unparseable.
+     */
+    public static final int DEFAULT_MAX_PAGE_SIZE = 200;
+
     @Inject
     @Setter
     @Getter(AccessLevel.PROTECTED)
     private ComponentRegistry componentRegistry;
+
+    @Inject
+    @Setter
+    private ApplicationProperties applicationProperties;
 
     @Getter(AccessLevel.PROTECTED)
     private Logger log = LoggerFactory.getLogger(BaseJpaRepositoryImpl.class.getName());
@@ -592,8 +607,12 @@ public abstract class BaseJpaRepositoryImpl<T extends BaseEntity> implements Jpa
         jakarta.persistence.Query q = createQuery(filter, queryOrder, em);
         int lastPageNumber = 1;
         int nextPage = 1;
+        //Resolving the configured maximum page size cap (defense against unbounded result sets / DoS)
+        int maxPageSize = resolveMaxPageSize();
 
         if (delta > 0 && page > 0) {
+            //clamping requested delta to the configured maximum
+            delta = Math.min(delta, maxPageSize);
             Long countResults = countAll(filter);
             lastPageNumber = (int) (Math.ceil(countResults / (double) delta));
             nextPage = (page <= lastPageNumber - 1) ? page + 1 : 1;
@@ -601,6 +620,9 @@ public abstract class BaseJpaRepositoryImpl<T extends BaseEntity> implements Jpa
             int firstResult = (page - 1) * delta;
             q.setFirstResult(firstResult);
             q.setMaxResults(delta);
+        } else {
+            //even when pagination is not requested (null/<=0 delta or page) a bounded page size must be enforced
+            q.setMaxResults(maxPageSize);
         }
 
         Collection<T> results = q.getResultList();
@@ -610,6 +632,29 @@ public abstract class BaseJpaRepositoryImpl<T extends BaseEntity> implements Jpa
         //and can do api or result composition in the client
         log.debug("Query results: {}", results);
         return paginatedResult;
+    }
+
+    /**
+     * Resolves the maximum allowed page size from the configured property
+     * {@link #MAX_PAGE_SIZE_PROPERTY}, falling back to {@link #DEFAULT_MAX_PAGE_SIZE}
+     * when the property is absent, unparseable, non-positive, or when no
+     * ApplicationProperties component is available.
+     *
+     * @return the effective maximum page size (always positive)
+     */
+    protected int resolveMaxPageSize() {
+        if (applicationProperties == null)
+            return DEFAULT_MAX_PAGE_SIZE;
+        Object raw = applicationProperties.getProperty(MAX_PAGE_SIZE_PROPERTY);
+        if (raw == null)
+            return DEFAULT_MAX_PAGE_SIZE;
+        try {
+            int configured = Integer.parseInt(raw.toString().trim());
+            return configured > 0 ? configured : DEFAULT_MAX_PAGE_SIZE;
+        } catch (NumberFormatException e) {
+            log.warn("Invalid value for {}: '{}', falling back to default {}", MAX_PAGE_SIZE_PROPERTY, raw, DEFAULT_MAX_PAGE_SIZE);
+            return DEFAULT_MAX_PAGE_SIZE;
+        }
     }
 
 

@@ -92,7 +92,7 @@ public class PredicateBuilder<T> {
                     return cb.lessThan(p, d);
                 }
             } else if (filter instanceof Like) {
-                return cb.like(p, fieldValue.getDefinition());
+                return cb.like(p, escapeLikeValue(fieldValue.getDefinition()), '\\');
             }
         } else if (filter instanceof BinaryValueListOperation) {
             Path<?> p = getPathForFields((AbstractOperation) filter);
@@ -102,6 +102,23 @@ public class PredicateBuilder<T> {
             }
         }
         throw new UnsupportedOperationException("Invalid operation");
+    }
+
+    /**
+     * Escapes LIKE wildcard characters ('%', '_') and the escape char ('\') itself in the
+     * supplied value so that user-provided input is treated as a literal pattern segment.
+     * The backslash MUST be escaped first to avoid double-escaping the wildcards we add.
+     * Used together with cb.like(path, pattern, '\\').
+     *
+     * @param value raw value coming from the query definition
+     * @return escaped value safe to use as a LIKE pattern
+     */
+    private String escapeLikeValue(String value) {
+        if (value == null) return null;
+        return value
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 
     private Object convertToEntityFieldType(Class<?> type, Object value) {
