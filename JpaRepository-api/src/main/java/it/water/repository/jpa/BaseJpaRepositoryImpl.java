@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import it.water.core.api.bundle.ApplicationProperties;
 import it.water.core.api.entity.owned.OwnedResource;
+import it.water.core.api.entity.tenant.TenantResource;
 import it.water.core.api.model.BaseEntity;
 import it.water.core.api.model.EntityExtension;
 import it.water.core.api.model.ExpandableEntity;
@@ -367,6 +368,13 @@ public abstract class BaseJpaRepositoryImpl<T extends BaseEntity> implements Jpa
                 Long oldOwnerId = ownedFromDb.getOwnerUserId();
                 OwnedResource owned = (OwnedResource) entity;
                 owned.setOwnerUserId(oldOwnerId);
+            }
+            //Defense in depth: mirror the owner restore for tenancy. The companyId is server-assigned
+            //and must never be changed via update, preventing a tenant-hijack at the persistence layer.
+            if (entityFromDb instanceof TenantResource tenantFromDb) {
+                Long oldCompanyId = tenantFromDb.getCompanyId();
+                TenantResource tenant = (TenantResource) entity;
+                tenant.setCompanyId(oldCompanyId);
             }
             if (entity.getId() > 0) {
                 log.debug("Updating entity");

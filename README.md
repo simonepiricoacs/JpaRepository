@@ -164,3 +164,9 @@ Use or extend the provided test utilities for custom test scenarios or entity ty
 
 The JpaRepository module provides a robust, extensible, and cross-platform foundation for JPA persistence in Water Framework applications, supporting both OSGi and Spring environments with advanced features and customization options.
 
+## Multitenancy (Company-based)
+
+Base classes for tenant-scoped JPA entities.
+
+- `AbstractJpaTenantEntity` (extends `AbstractJpaEntity`) and `AbstractJpaExpandableTenantEntity` (extends `AbstractJpaExpandableEntity`) — both `@MappedSuperclass implements TenantResource`, carrying the nullable `companyId` column (`@JsonIgnore`, server-assigned). An expandable entity must use the expandable variant to stay expandable when tenantized.
+
